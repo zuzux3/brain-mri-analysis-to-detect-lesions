@@ -297,21 +297,28 @@ def ensamble_classify_patch(patch_np):
     patch_pil = Image.fromarray(patch_np.astype('uint8'))
     x = preprocess_image(patch_pil).to(device)
     
+    model_results = []
     all_probs = []
     
     with torch.no_grad():
-        for m in models_list:
+        for m, name in zip(models_list, models_names):
             logits = m(x)
             probs = F.softmax(logits, dim=1)
-            all_probs.append(probs.cpu().numpy()[0])
+            probs_np = probs.detach().cpu().numpy()[0]
+            
+            all_probs.append(probs_np)
+            
+            pred_idx = int(probs_np.argmax())
+            pred_prob = float(probs_np[pred_idx])
+            model_results.append((name, pred_idx, pred_prob))
             
     all_probs = np.stack(all_probs, axis=0)
     mean_probs = all_probs.mean(axis=0)
     
-    best_idx = int(mean_probs.argmax())
-    best_prob = float(mean_probs[best_idx])
+    ens_idx = int(mean_probs.argmax())
+    ens_prob = float(mean_probs[ens_idx])
     
-    return best_idx, best_prob
+    return model_results, ens_idx, ens_prob
 
 def yolo_detect_and_classify(img):
     if yolo_model is None:
@@ -343,13 +350,13 @@ def yolo_detect_and_classify(img):
         
         patch = output[y1:y2, x1:x2]
         
-        class_idx, prob = ensamble_classify_patch(patch)
-        class_name = classes[class_idx]
+        model_results, ens_idx, ens_prob = ensamble_classify_patch(patch)
+        final_class = classes[ens_idx]
         
         cv2.rectangle(output, (x1, y1), (x2, y2), (0, 255, 0), 2)
         cv2.putText(
             output,
-            f'{class_name}: {prob:.2f}',
+            f'{final_class}: {ens_prob:.2f}',
             (x1, y1 - 10),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.5,
@@ -358,7 +365,15 @@ def yolo_detect_and_classify(img):
             cv2.LINE_AA
         )
         
-        msg_lines.append(f"{i+1}. Box [{x1},{y1},{x2},{y2}] -> {class_name} (p={prob:.3f})")
+        lines = [
+            f"Box {i+1}: [{x1}, {y1}, {x2}, {y2}]",
+            f"  Ensemble: {final_class} (p={ens_prob:.3f})"
+        ]
+        
+        for model_name, c_idx, c_prob in model_results:
+            lines.append(f"    {model_name}: {classes[c_idx]} (p={c_prob:.3f})")
+            
+        msg_lines.append("\n".join(lines))
     
     if not msg_lines:
         msg = "No valid detections."
