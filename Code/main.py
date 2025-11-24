@@ -8,6 +8,12 @@ import torch.nn.functional as F
 import torchvision.transforms.v2 as T
 import torchvision.models as models
 
+try:
+    from ultralytics import YOLO
+    YOLO_AVAILABLE = True
+except ImportError:
+    YOLO_AVAILABLE = False
+
 #models paths
 resnet18_path = 'brain-mri-analysis-to-detect-lesions/Models/savedModels/Resnet18Model.pth'
 resnet50_path = 'brain-mri-analysis-to-detect-lesions/Models/savedModels/Resnet50Model.pth'
@@ -15,6 +21,7 @@ resnet101_path = 'brain-mri-analysis-to-detect-lesions/Models/savedModels/Resnet
 resnet152_path = 'brain-mri-analysis-to-detect-lesions/Models/savedModels/Resnet152Model.pth'
 vgg16_path = 'brain-mri-analysis-to-detect-lesions/Models/savedModels/VGG16Model.pth'
 vgg19_path = 'brain-mri-analysis-to-detect-lesions/Models/savedModels/VGG19Model.pth'
+yolov8_path = 'brain-mri-analysis-to-detect-lesions/Models/savedModels/yolov8.pt'
 
 #classes
 classes = {
@@ -27,6 +34,10 @@ classes = {
 num_classes = len(classes)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+# =========================
+# Grad-CAM
+# =========================
 
 class GradCAM:
     def __init__(self, model, target_layer):
@@ -76,6 +87,10 @@ class GradCAM:
         
         return logits, cam_np
 
+# =========================
+# Preprocessing
+# =========================
+
 def preprocess_image(img):
     if isinstance(img, np.ndarray):
         img = Image.fromarray(img.astype('uint8'), 'RGB')
@@ -88,6 +103,11 @@ def preprocess_image(img):
     
     tensor = transform(img).unsqueeze(0)
     return tensor
+
+# =========================
+# Model Loading
+# =========================
+
 
 def get_last_conv_(model, isResnet: bool = True):
     if isResnet:
@@ -151,7 +171,11 @@ target_layers = [
 gradcams = [
     GradCAM(m, layer) for m, layer in zip(models_list, target_layers)
 ]
-    
+
+# =========================
+# Grad-CAM overlay (TAB-1)
+# =========================
+
 def overlay_cam_on_image(img, cam, alpha=0.4):
     h, w, _ = img.shape
     cam_resized = cv2.resize(cam, (w, h))
@@ -164,7 +188,7 @@ def overlay_cam_on_image(img, cam, alpha=0.4):
     
     return overlay    
     
-def classify(gradcam_obj, model_name, img, class_id=2, device='cpu'):
+def classify_gradcam(gradcam_obj, model_name, img, class_id=2, device='cpu'):
     pil_img = Image.fromarray(img.astype('uint8'))
     x = preprocess_image(pil_img).to(device)
     
@@ -184,16 +208,126 @@ def classify(gradcam_obj, model_name, img, class_id=2, device='cpu'):
         
     return out_img, label_text
 
-def classify_img(img):
+def classify_img_gradcam(img):
     results_flat = []
     
     for gc, name in zip(gradcams, models_names):
-        cam_img, label = classify(gc, name, img)
+        cam_img, label = classify_gradcam(gc, name, img)
         results_flat.extend([cam_img, label])
         
     return results_flat
 
-with gr.Blocks() as ui: 
+# =========================
+# OpenCV Bounding Box (TAB-2)
+# =========================
+
+def cam_to_bbox_img(img, cam, threshold=0.4):
+    h, w, _ = img.shape
+    cam_resized = cv2.resize(cam, (w, h))
+    
+    _, cam_bin = cv2.threshold(
+        (cam_resized * 255).astype(np.uint8),
+        int(threshold * 255),
+        255,
+        cv2.THRESH_BINARY
+    )
+    
+    contours, _ = cv2.findContours(cam_bin, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    
+    output_img = img.copy()
+    
+    if len(contours) > 0:
+        return output_img
+    
+    c = max(contours, key=cv2.contourArea)
+    x, y, bw, bh = cv2.boundingRect(c)
+    
+    cv2.rectangle(output_img, (x, y), (x + bw, y + bh), (0, 255, 0), 2)
+    
+    return output_img
+
+def classify_opencv_bbox(gradcam_obj, model_name, img, class_id=2, device='cpu'):
+    pil_img = Image.fromarray(img.astype('uint8'))
+    x = preprocess_image(pil_img).to(device)
+    
+    logits, cam_np = gradcam_obj(x)
+    probs = F.softmax(logits, dim=1).detach().cpu().numpy()
+    
+    pred_idx = probs.argmax(1).item()
+    pred_prob = probs[0, pred_idx].item()
+    
+    label_text = f'Predicted class: {classes[pred_idx]}'
+    
+    if pred_idx == class_id:
+        out_img = img
+    
+    else:
+        out_img = cam_to_bbox_img(img, cam_np)
+        
+    return out_img, label_text
+
+def classify_img_opencv(img):
+    results_flat = []
+    
+    for gc, name in zip(gradcams, models_names):
+        bbox_img, label = classify_opencv_bbox(gc, name, img)
+        
+        results_flat.extend([bbox_img, label])
+        
+    return results_flat
+
+
+# =========================
+# Gradio UI
+# =========================
+
+with gr.Blocks() as ui:
+    gr.Markdown('Brain MRI Analysis to detect lesions')
+    
+    with gr.Tabs():
+        with gr.Tab('Grad-CAM'):
+            gr.Markdown('Lesion detection using Grad-Cam with pretrained models')
+            
+            in_img = gr.Image(type='numpy', label='Input Brain MRI Image')
+            
+            outs = []
+            
+            for i in range(len(models_names)):
+                with gr.Row():
+                    out_img = gr.Image(type='numpy', label=f'{models_names[i]} - CAM/Plain')
+                    out_label = gr.Textbox(label=f'{models_names[i]} - Prediction')
+                    
+                outs.extend([out_img, out_label])
+                
+            run_btn = gr.Button('Analyze Image')
+            run_btn.click(
+                fn=classify_img_gradcam,
+                inputs=in_img,
+                outputs=outs
+            )
+            
+        with gr.Tab('OpenCV Bounding Box'):
+            gr.Markdown('Lesion detection using OpenCV bounding box')
+            
+            in_img2 = gr.Image(type='numpy', label='Input Brain MRI Image')
+            
+            outs2 = []
+            
+            for i in range(len(models_names)):
+                with gr.Row():
+                    out_img2 = gr.Image(type='numpy', label=f'{models_names[i]} - BBox/Plain')
+                    out_label2 = gr.Textbox(label=f'{models_names[i]} - Prediction')
+                    
+                outs2.extend([out_img2, out_label2])
+                
+            run_btn2 = gr.Button('Analyze Image')
+            run_btn2.click(
+                fn=classify_img_opencv,
+                inputs=in_img2,
+                outputs=outs2
+            )
+
+'''with gr.Blocks() as ui: 
     gr.Markdown('Brain MRI Analysis to detect Lesions using Grad-CAM')
     in_img = gr.Image(type='numpy', label='Input Brain MRI Image')
     
@@ -208,9 +342,9 @@ with gr.Blocks() as ui:
     run_btn = gr.Button('Analyze Image')
     
     run_btn.click(
-        fn=classify_img,
+        fn=classify_img_gradcam,
         inputs=in_img,
         outputs=outs
-    )
+    )'''
 
 ui.launch(share=True)
