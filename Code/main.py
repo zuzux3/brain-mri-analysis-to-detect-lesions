@@ -222,7 +222,7 @@ def classify_img_gradcam(img):
 # =========================
 
 def cam_to_bbox_img(img, cam, threshold=0.4):
-    h, w, _ = img.shape
+    h, w = img.shape[:2]
     cam_resized = cv2.resize(cam, (w, h))
     
     _, cam_bin = cv2.threshold(
@@ -233,15 +233,17 @@ def cam_to_bbox_img(img, cam, threshold=0.4):
     )
     
     contours, _ = cv2.findContours(cam_bin, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    
     output_img = img.copy()
     
-    if len(contours) > 0:
-        return output_img
+    if contours is None or len(contours) == 0:
+        return output_img    
     
     c = max(contours, key=cv2.contourArea)
-    x, y, bw, bh = cv2.boundingRect(c)
     
+    if cv2.contourArea(c) < 100:
+        return output_img
+    
+    x, y, bw, bh = cv2.boundingRect(c)
     cv2.rectangle(output_img, (x, y), (x + bw, y + bh), (0, 255, 0), 2)
     
     return output_img
