@@ -282,7 +282,7 @@ def classify_img_opencv(img):
 # YOLOv8 + classification (TAB-3)
 # =========================
 
-if YOLO_AVAILABLE
+if YOLO_AVAILABLE:
     try:
         yolo_model = YOLO(yolov8_path)
     except Exception as e:
