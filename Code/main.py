@@ -278,7 +278,95 @@ def classify_img_opencv(img):
         
     return results_flat
 
+# =========================
+# YOLOv8 + classification (TAB-3)
+# =========================
 
+if YOLO_AVAILABLE
+    try:
+        yolo_model = YOLO(yolov8_path)
+    except Exception as e:
+        print(f"Error loading YOLOv8 model: {e}")
+        yolo_model = None
+        
+else:
+    yolo_model = None
+    print("Ultralytics YOLO package not available. YOLOv8 functionality will be disabled.")
+    
+def ensamble_classify_patch(patch_np):
+    patch_pil = Image.fromarray(patch_np.astype('uint8'))
+    x = preprocess_image(patch_pil).to(device)
+    
+    all_probs = []
+    
+    with torch.no_grad():
+        for m in models_list:
+            logits = m(x)
+            probs = F.softmax(logits, dim=1)
+            all_probs.append(probs.cpu().numpy()[0])
+            
+    all_probs = np.stack(all_probs, axis=0)
+    mean_probs = all_probs.mean(axis=0)
+    
+    best_idx = int(mean_probs.argmax())
+    best_prob = float(mean_probs[best_idx])
+    
+    return best_idx, best_prob
+
+def yolo_detect_and_classify(img):
+    if yolo_model is None:
+        return img, "YOLOv8 model not available."
+    
+    img_rgb = img.copy()
+    
+    results = yolo_model(img_rgb, verbose=False)
+    
+    if len(results) == 0:
+        return img
+    result = results[0]
+    
+    if result.boxes is None or len(result.boxes) == 0:
+        return img_rgb
+    
+    output = img_rgb.copy()
+    msg_lines = []
+    
+    for i, box in enumerate(result.boxes):
+        x1, y1, x2, y2 = box.xyxy[0].cpu().numpy().astype(int)
+        x1 = max(0, x1)
+        y1 = max(0, y1)
+        x2 = min(img.shape[1], x2)
+        y2 = min(img.shape[0], y2)
+        
+        if x2 <= x1 or y2 <= y1:
+            continue
+        
+        patch = output[y1:y2, x1:x2]
+        
+        class_idx, prob = ensamble_classify_patch(patch)
+        class_name = classes[class_idx]
+        
+        cv2.rectangle(output, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        cv2.putText(
+            output,
+            f'{class_name}: {prob:.2f}',
+            (x1, y1 - 10),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.5,
+            (0, 255, 0),
+            1,
+            cv2.LINE_AA
+        )
+        
+        msg_lines.append(f"{i+1}. Box [{x1},{y1},{x2},{y2}] -> {class_name} (p={prob:.3f})")
+    
+    if not msg_lines:
+        msg = "No valid detections."
+        
+    else:
+        msg = "\n".join(msg_lines)
+        
+    return output, msg
 # =========================
 # Gradio UI
 # =========================
@@ -328,7 +416,20 @@ with gr.Blocks() as ui:
                 inputs=in_img2,
                 outputs=outs2
             )
-
+            
+        with gr.Tab('YOLOv8 + Classification'):
+            gr.Markdown('Lesion detection using YOLOv8 and classification ensemble')
+            
+            in_img3 = gr.Image(type='numpy', label='Input Brain MRI Image')
+            out_img3 = gr.Image(type='numpy', label='Output Image with Detections')
+            out_text3 = gr.Textbox(label='Detections Summary')
+            
+            run_btn3 = gr.Button('Analyze Image')
+            run_btn3.click(
+                fn=yolo_detect_and_classify,
+                inputs=in_img3,
+                outputs=[out_img3, out_text3]
+            )
 '''with gr.Blocks() as ui: 
     gr.Markdown('Brain MRI Analysis to detect Lesions using Grad-CAM')
     in_img = gr.Image(type='numpy', label='Input Brain MRI Image')
