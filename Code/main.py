@@ -374,7 +374,30 @@ def yolo_detect(img):
             
         return output, msg
 
+def classify_img_yolo(img):
+    pil_img = Image.fromarray(img.astype('uint8'))
+    x = preprocess_image(pil_img).to(device)
+    
+    labels = []
+    
+    with torch.no_grad():
+        for m, name in zip(models_list, models_names):
+            logits = m(x)
+            probs = F.softmax(logits, dim=1)
+            probs_np = probs.detach().cpu().numpy()[0]
+            
+            pred_idx = int(probs_np.argmax())
+            pred_prob = float(probs_np[pred_idx])
+            label_text = f'{name} Prediction: {classes[pred_idx]} (Prob: {pred_prob:.4f})'
+            labels.append(label_text)
+            
+    return labels
 
+def predict_and_detect(img):
+    yolo_out_img, yolo_msg = yolo_detect(img)
+    class_labels = classify_img_yolo(img)
+    
+    return yolo_out_img, yolo_msg, class_labels
 
 # =========================
 # Gradio UI
@@ -436,7 +459,7 @@ with gr.Blocks() as ui:
             
             run_btn3 = gr.Button('Analyze Image')
             run_btn3.click(
-                fn=yolo_detect,
+                fn=predict_and_detect,
                 inputs=in_img3,
                 outputs=[out_img3, out_text3, out_lb3]
             )
