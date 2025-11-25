@@ -198,7 +198,7 @@ def classify_gradcam(gradcam_obj, model_name, img, class_id=2, device='cpu'):
     pred_idx = probs.argmax(1).item()
     pred_prob = probs[0, pred_idx].item()
     
-    label_text = f'Predicted class: {classes[pred_idx]}'
+    label_text = f'Predicted class: {classes[pred_idx]} (Prob: {pred_prob:.4f})'
     
     if pred_idx == class_id:
         empty_cam = np.zeros_like(cam_np)
@@ -258,7 +258,7 @@ def classify_opencv_bbox(gradcam_obj, model_name, img, class_id=2, device='cpu')
     pred_idx = probs.argmax(1).item()
     pred_prob = probs[0, pred_idx].item()
     
-    label_text = f'Predicted class: {classes[pred_idx]}'
+    label_text = f'Predicted class: {classes[pred_idx]} (Prob: {pred_prob:.4f})'
     
     if pred_idx == class_id:
         out_img = img
