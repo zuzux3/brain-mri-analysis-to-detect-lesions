@@ -201,8 +201,8 @@ def classify_gradcam(gradcam_obj, model_name, img, class_id=2, device='cpu'):
     label_text = f'Predicted class: {classes[pred_idx]}'
     
     if pred_idx == class_id:
-        out_img = img
-    
+        empty_cam = np.zeros_like(cam_np)
+        out_img = overlay_cam_on_image(img, empty_cam)
     else:
         out_img = overlay_cam_on_image(img, cam_np)
         
