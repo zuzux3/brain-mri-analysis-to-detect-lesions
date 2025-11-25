@@ -320,68 +320,62 @@ def ensamble_classify_patch(patch_np):
     
     return model_results, ens_idx, ens_prob
 
-def yolo_detect_and_classify(img):
+def yolo_detect(img):
     if yolo_model is None:
-        return img, "YOLOv8 model not available."
+        return img, 'YOLOv8 model not available.'
     
     img_rgb = img.copy()
+    output = img_rgb.copy()
     
     results = yolo_model(img_rgb, verbose=False)
     
     if len(results) == 0:
-        return img
+        return output, 'No detections.'
+    
     result = results[0]
     
     if result.boxes is None or len(result.boxes) == 0:
-        return img_rgb
+        return output, 'No bounding boxes detected.'
     
-    output = img_rgb.copy()
-    msg_lines = []
+    names = result.names
+    msgs = []
     
     for i, box in enumerate(result.boxes):
         x1, y1, x2, y2 = box.xyxy[0].cpu().numpy().astype(int)
+        conf = box.conf[0].cpu().numpy()
+        cls_id = int(box.cls[0].cpu().numpy())
+        cls_name = names.get(cls_id, f'class{cls_id}')
+        
         x1 = max(0, x1)
         y1 = max(0, y1)
-        x2 = min(img.shape[1], x2)
-        y2 = min(img.shape[0], y2)
+        x2 = min(img.shape[1] - 1, x2)
+        y2 = min(img.shape[0] - 1, y2)
         
         if x2 <= x1 or y2 <= y1:
             continue
         
-        patch = output[y1:y2, x1:x2]
-        
-        model_results, ens_idx, ens_prob = ensamble_classify_patch(patch)
-        final_class = classes[ens_idx]
-        
-        cv2.rectangle(output, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        cv2.rectangle(output, (x1, y1), (x2, y2), (255, 0, 0), 2)
         cv2.putText(
             output,
-            f'{final_class}: {ens_prob:.2f}',
-            (x1, y1 - 10),
+            f'{cls_name} {conf:.2f}',
+            (x1, max(0, y1-5)),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.5,
-            (0, 255, 0),
-            1,
-            cv2.LINE_AA
+            (255, 0, 0),
+            2
         )
         
-        lines = [
-            f"Box {i+1}: [{x1}, {y1}, {x2}, {y2}]",
-            f"  Ensemble: {final_class} (p={ens_prob:.3f})"
-        ]
+        msgs.append(f'Detection {i+1}: {cls_name} (conf: {conf:.2f})')
         
-        for model_name, c_idx, c_prob in model_results:
-            lines.append(f"    {model_name}: {classes[c_idx]} (p={c_prob:.3f})")
+        if not msgs:
+            msg = 'No valid detections.'
+        else:
+            msg = '\n'.join(msgs)
             
-        msg_lines.append("\n".join(lines))
-    
-    if not msg_lines:
-        msg = "No valid detections."
-        
-    else:
-        msg = "\n".join(msg_lines)
-        
-    return output, msg
+        return output, msg
+
+
+
 # =========================
 # Gradio UI
 # =========================
@@ -438,12 +432,13 @@ with gr.Blocks() as ui:
             in_img3 = gr.Image(type='numpy', label='Input Brain MRI Image')
             out_img3 = gr.Image(type='numpy', label='Output Image with Detections')
             out_text3 = gr.Textbox(label='Detections Summary')
+            out_lb3 = gr.Textbox(label=f'{models_names[i]} - Prediction')
             
             run_btn3 = gr.Button('Analyze Image')
             run_btn3.click(
-                fn=yolo_detect_and_classify,
+                fn=yolo_detect,
                 inputs=in_img3,
-                outputs=[out_img3, out_text3]
+                outputs=[out_img3, out_text3, out_lb3]
             )
 '''with gr.Blocks() as ui: 
     gr.Markdown('Brain MRI Analysis to detect Lesions using Grad-CAM')
