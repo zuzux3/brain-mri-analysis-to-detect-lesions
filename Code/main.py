@@ -397,7 +397,7 @@ def predict_and_detect(img):
     yolo_out_img, yolo_msg = yolo_detect(img)
     class_labels = classify_img_yolo(img)
     
-    return yolo_out_img, yolo_msg, class_labels
+    return yolo_out_img, yolo_msg, class_labels[0], class_labels[1], class_labels[2], class_labels[3], class_labels[4], class_labels[5]
 
 # =========================
 # Gradio UI
@@ -451,17 +451,24 @@ with gr.Blocks() as ui:
             
         with gr.Tab('YOLOv8 + Classification'):
             gr.Markdown('Lesion detection using YOLOv8 and classification ensemble')
-            
+                        
             in_img3 = gr.Image(type='numpy', label='Input Brain MRI Image')
             out_img3 = gr.Image(type='numpy', label='Output Image with Detections')
             out_text3 = gr.Textbox(label='Detections Summary')
-            out_lb3 = gr.Textbox(label=f'{models_names[i]} - Prediction')
+            
+            outs3 = [out_img3, out_text3]
+            
+            for i in range(len(models_names)):
+                with gr.Row():
+                    out_lb3 = gr.Textbox(label=f'{models_names[i]} - Prediction')
+                
+                outs3.extend([out_lb3])
             
             run_btn3 = gr.Button('Analyze Image')
             run_btn3.click(
                 fn=predict_and_detect,
                 inputs=in_img3,
-                outputs=[out_img3, out_text3, out_lb3]
+                outputs=outs3
             )
 '''with gr.Blocks() as ui: 
     gr.Markdown('Brain MRI Analysis to detect Lesions using Grad-CAM')
