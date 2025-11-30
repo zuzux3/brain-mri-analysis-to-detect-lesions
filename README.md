@@ -54,3 +54,7 @@ Libraries were used for model training and testing.
 Dataset used was collected by Sartaj Bhuvaji, Ankita Kadam, Prajakta Bhumkar, Sameer Dedge.
 [Github](https://github.com/SartajBhuvaji/Brain-Tumor-Classification-Using-Deep-Learning-Algorithms)
 [Kaggle](https://www.kaggle.com/datasets/sartajbhuvaji/brain-tumor-classification-mri)
+
+For creating tumor detection algorithm Br35H:Brain Tumor Dataset was used.
+[Github](https://github.com/ahmedhamada0/brain-tumor-detection-dataset)
+[Kaggle](https://www.kaggle.com/datasets/ahmedhamada0/brain-tumor-detection)
