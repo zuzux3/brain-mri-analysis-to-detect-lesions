@@ -14,6 +14,7 @@ Used libraries:
 - Gradio
 - OpenCV
 - Pillow
+- Ultralytics
 
 ## Use of libraries
 
@@ -28,6 +29,7 @@ In the project there are six models used in total:
 4) ResNet152
 5) VGG16
 6) VGG19
+7) YOLOv8
 
 ### Pandas, Matplotlib, Seaborn
 Libraries were used for plotting and creating examples of images in the dataset.
@@ -43,6 +45,9 @@ Library was used to create software demo UI.
 
 ### OpenCV, Pillow
 Libraries were used for image-specific tasks, like handling Grad-CAM.
+
+### PyTorch, Torchvision, Ultralytics
+Libraries were used for model training and testing.
 
 
 ## Dataset used
