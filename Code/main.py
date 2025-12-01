@@ -470,24 +470,5 @@ with gr.Blocks() as ui:
                 inputs=in_img3,
                 outputs=outs3
             )
-'''with gr.Blocks() as ui: 
-    gr.Markdown('Brain MRI Analysis to detect Lesions using Grad-CAM')
-    in_img = gr.Image(type='numpy', label='Input Brain MRI Image')
-    
-    outs = []
-    for i in range(len(models_names)):
-        with gr.Row():
-            out_img = gr.Image(type='numpy', label=f'{models_names[i]} - CAM/Plain')
-            out_label = gr.Textbox(label=f'{models_names[i]} - Prediction')
-            
-        outs.extend([out_img, out_label])
-        
-    run_btn = gr.Button('Analyze Image')
-    
-    run_btn.click(
-        fn=classify_img_gradcam,
-        inputs=in_img,
-        outputs=outs
-    )'''
 
 ui.launch(share=True)
