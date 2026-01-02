@@ -471,4 +471,4 @@ with gr.Blocks() as ui:
                 outputs=outs3
             )
 
-ui.launch(share=True)
+ui.launch(share=True, theme=gr.themes.Soft())
