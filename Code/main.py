@@ -198,7 +198,7 @@ def classify_gradcam(gradcam_obj, model_name, img, class_id=2, device='cpu'):
     pred_idx = probs.argmax(1).item()
     pred_prob = probs[0, pred_idx].item()
     
-    label_text = f'Predicted class: {classes[pred_idx]} (Prob: {pred_prob:.4f})'
+    label_text = f'Predicted class: {classes[pred_idx]} (Probability: {pred_prob:.4f})'
     
     if pred_idx == class_id:
         empty_cam = np.zeros_like(cam_np)
@@ -258,7 +258,7 @@ def classify_opencv_bbox(gradcam_obj, model_name, img, class_id=2, device='cpu')
     pred_idx = probs.argmax(1).item()
     pred_prob = probs[0, pred_idx].item()
     
-    label_text = f'Predicted class: {classes[pred_idx]} (Prob: {pred_prob:.4f})'
+    label_text = f'Predicted class: {classes[pred_idx]} (Probability: {pred_prob:.4f})'
     
     if pred_idx == class_id:
         out_img = img
@@ -365,7 +365,7 @@ def yolo_detect(img):
             2
         )
         
-        msgs.append(f'Detection {i+1}: {cls_name} (conf: {conf:.2f})')
+        msgs.append(f'Detection {i+1}: {cls_name} (Probability: {conf:.2f})')
         
         if not msgs:
             msg = 'No valid detections.'
@@ -388,7 +388,7 @@ def classify_img_yolo(img):
             
             pred_idx = int(probs_np.argmax())
             pred_prob = float(probs_np[pred_idx])
-            label_text = f'{name} Prediction: {classes[pred_idx]} (Prob: {pred_prob:.4f})'
+            label_text = f'{name} Prediction: {classes[pred_idx]} (Probability: {pred_prob:.4f})'
             labels.append(label_text)
             
     return labels
@@ -396,6 +396,7 @@ def classify_img_yolo(img):
 def predict_and_detect(img):
     yolo_out_img, yolo_msg = yolo_detect(img)
     class_labels = classify_img_yolo(img)
+    # yolo_msg = class_labels[3]
     
     return yolo_out_img, yolo_msg, class_labels[0], class_labels[1], class_labels[2], class_labels[3], class_labels[4], class_labels[5]
 
