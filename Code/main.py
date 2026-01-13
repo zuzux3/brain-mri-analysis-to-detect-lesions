@@ -335,7 +335,7 @@ def yolo_detect(img):
     result = results[0]
     
     if result.boxes is None or len(result.boxes) == 0:
-        return output, 'No bounding boxes detected.'
+        return output, 'No tumor detected.'
     
     names = result.names
     msgs = []
