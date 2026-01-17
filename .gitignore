@@ -1,5 +1,5 @@
 *.pth
 /Models
 check.py
-.zip
-.rar
+*.zip
+*.rar
